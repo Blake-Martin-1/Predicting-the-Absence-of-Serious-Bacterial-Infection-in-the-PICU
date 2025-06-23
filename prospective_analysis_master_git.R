@@ -460,28 +460,6 @@ pros_dt_with_study_id <- pros_dt_with_study_id %>% filter(!is.na(intime))
 pros_df <- pros_dt_with_study_id
 
 
-# # Step 1: Create a unique list of admissions with their rank
-# admission_order <- na_rows %>%
-#   distinct(pat_enc_csn_id, picu_adm_date_time) %>%
-#   arrange(pat_enc_csn_id, picu_adm_date_time) %>%
-#   group_by(pat_enc_csn_id) %>%
-#   mutate(adm_number = row_number()) %>%
-#   ungroup()
-#
-# # Step 2: Join back to the full dataframe
-# na_rows <- na_rows %>%
-#   left_join(admission_order, by = c("pat_enc_csn_id", "picu_adm_date_time")) %>%
-#   mutate(study_id = paste0(pat_enc_csn_id, "_", adm_number))
-#
-# # Now remove the old na rows from pros_dt... and add them back in
-# pros_wo <- pros_dt_with_study_id %>% filter(!is.na(intime))
-#
-# # Store old version of pros_df
-# pros_df_old <- pros_df
-#
-# # Bind together the rows that had na for in and outtimes (now fixed) with the
-# pros_df <- bind_rows(pros_wo, na_rows %>% dplyr::select(-adm_number))
-
 # Reorder
 pros_df <- pros_df %>% relocate(study_id, pat_enc_csn_id, picu_adm_date_time, score_time, hours_since_picu_adm) %>% arrange(study_id, picu_adm_date_time, score_time)
 
@@ -645,47 +623,6 @@ n_enc <- n_distinct(pros_all$study_id) #2794 study encounters
 n_pts <- nrow(pros_all %>% dplyr::select(pat_enc_csn_id) %>% distinct()) #2,628 unique hospitalizations
 n_pred_pre <- nrow(pros_all) #249,586 predictions
 
-# # # Filtered out for now because not using the "stop making predictions" filter yet
-# # Now will filter out predictions made after two 'positive' SBI predictions (i.e. if two predictions with probability > 50%)
-# # Create function to perform this task to be able to apply to all 4 dfs
-# filter_above_50 <- function(temp_df){
-#   temp_filtered <- temp_df %>%
-#     group_by(pat_enc_csn_id, picu_adm_date_time) %>%
-#     arrange(score_time) %>%
-#     mutate(
-#       score_above_50 = model_score > 50,
-#       consec_above_50 = score_above_50 & lag(score_above_50, default = FALSE),
-#       idx = row_number(),
-#       first_consec_index = ifelse(any(consec_above_50), which(consec_above_50)[1], n()),
-#       filter_applied = any(consec_above_50),
-#       filter_time_hours = ifelse(
-#         filter_applied,
-#         as.numeric(difftime(score_time[first_consec_index], picu_adm_date_time, units = "hours")),
-#         NA_real_
-#       )
-#     ) %>%
-#     filter(idx <= first_consec_index) %>%
-#     ungroup()
-#   return(temp_filtered)
-# }
-#
-#
-# # Filter out predictions that occur after two >50% SBI probability predictions
-# pros_all <- filter_above_50(pros_all)
-# n_enc <- nrow(pros_all %>% dplyr::select(pat_enc_csn_id, picu_adm_date_time) %>% distinct())
-#
-# # Create unique id for each patient
-# unique_admissions <- pros_all %>%
-#   distinct(pat_enc_csn_id, picu_adm_date_time) %>%
-#   arrange(pat_enc_csn_id, picu_adm_date_time) %>%
-#   mutate(study_id = row_number())
-#
-# # Step 2: Join the study_id back to the original dataframe
-# pros_all <- pros_all %>%
-#   left_join(unique_admissions, by = c("pat_enc_csn_id", "picu_adm_date_time"))
-#
-# # Relocate to make QC easier
-# pros_all <- pros_all %>% relocate(study_id, pat_enc_csn_id, picu_adm_date_time, pat_mrn_id, hsp_account_id, score_time, model_score)
 
 # Quality control to see the number of unique encounters and those with and without SBI
 n_enc <- n_distinct(pros_all$study_id) #
@@ -734,10 +671,6 @@ adm_and_csn <- pros_all %>% dplyr::select(study_id, pat_enc_csn_id, hsp_account_
 
 # # Call the AKI script to identify patients with delayed AKI
 # source(file = "/home/martinbl/sbi_blake/prospective_validation_files/aki_pros.R")
-
-# # Old data storage line
-# # write.fst(x = pros_all, path = "/home/martinbl/sbi_blake/prospective_validation_files/after_aki_10_16_24_fst")
-# pros_all <- read.fst(path = "/home/martinbl/sbi_blake/prospective_validation_files/after_aki_10_16_24_fst")
 
 # # Call the outcomes script to evaluate AKI and C.Diff in patients with and without antibiotic exposure
 # source(file = "/home/martinbl/sbi_blake/prospective_validation_files/aae_pros.R")
@@ -1072,15 +1005,6 @@ qic(
   xlab = "PICU Admission Month",
   ylab = "Proportion of Patients (SBI Present + Antibiotics)"
 )
-
-
-
-
-
-# Analyze may and june months, wtf is going on
-
-
-
 
 
 #### Now will determine what % of patients with SBI had abx started and how quickly ####
@@ -2687,159 +2611,5 @@ ggplot(cal_data, aes(x = mean_pred, y = obs_rate)) +
     legend.text       = element_text(size = 12, face = "bold"),
     plot.title        = element_text(size = 16, face = "bold")
   )
-
-
-
-
-# # Not sure what this code I wrote in July/Aug of 2024 is for
-# pros_w_retro <- inner_join(pros_pna, retro_slim, by = "picu_adm_date_time") # Find elements from both the predictive model df and the
-#
-# micro_filtered <- left_join(micro_final, retro_slim, by = "hsp_account_id") #join with the retro_slim to get the picu admit date/time and find cultures from 24 hours around admission time.
-# micro_filtered <- micro_filtered %>% filter()
-#
-#
-# pros_micro <- left_join(pros_w_retro, )
-#
-# # Load retro data full model to make some charts
-# model_data_retro <- read_xlsx(path = "/phi/sbi/retro_data/rf_testing_df_abx_exp_top_40.xlsx")
-# model_data_retro$sbi_present <- as.factor(model_data_retro$sbi_present)
-#
-# ggplot(model_data_retro, aes(x = prob_of_sbi_by_model, fill = sbi_present)) +
-#   geom_histogram(position = "identity", alpha = 0.5, bins = 30) +
-#   scale_fill_manual(values = c("no" = "blue", "yes" = "red")) +
-#   labs(
-#     title = "Model Probability of Serious Bacterial Infection: RF Antibiotic Exposed",
-#     x = "Probability of SBI",
-#     y = "Count",
-#     fill = "SBI Present"
-#   ) +
-#   theme_minimal() +
-#   theme(
-#     plot.title = element_text(size = 20, face = "bold"),
-#     axis.title.x = element_text(size = 16, face = "bold"),
-#     axis.title.y = element_text(size = 16, face = "bold"),
-#     axis.text.x = element_text(size = 14, face = "bold"),
-#     axis.text.y = element_text(size = 14, face = "bold"),
-#     legend.title = element_text(size = 16, face = "bold"),
-#     legend.text = element_text(size = 14, face = "bold")
-#   )
-#
-# # Calculate proportion with SBI to help interpret AUPRC values
-# n_exp_total <- nrow(model_data_retro) #2038
-# n_exp_sbi <- nrow(model_data_retro %>% filter(sbi_present == "yes")) #488
-# sbi_prop_exp <- n_exp_sbi / n_exp_total
-#
-# model_data_unexp <- read.fst(path = "/home/martinbl/sbi_blake/rf_df_no_abx_top_40.fst")
-# model_data_unexp$sbi_present <- as.factor(model_data_unexp$sbi_present)
-#
-# n_unexp_total <- nrow(model_data_unexp)
-# n_unexp_sbi <- nrow(model_data_unexp %>% filter(sbi_present == "yes"))
-# sbi_prop_unexp <- n_unexp_sbi / n_unexp_total
-#
-#
-
-
-
-
-
-
-
-###### Old code to plot pneumonia trajectories ######
-# # Will plot some SBI trajectories for 3 patient with PNA and then for 3 patients without SBI
-# to_plot_pna <- pros_pna %>% dplyr::select(pat_enc_csn_id, age, pna_1_0, model_type, score_time, model_score) %>% filter(pna_1_0 == 1)
-# to_plot_pna$score_time <- as.POSIXct(to_plot_pna$score_time, format = "%Y-%m-%d %H:%M:%S", tz = "America/Denver")
-# to_plot_pna$model_type <- as.factor(to_plot_pna$model_type)
-#
-#
-# # Plot 1
-# plot_1_df <- to_plot_pna %>% filter(pat_enc_csn_id == 78569960, model_type %in% c("LR_yes_abx", "RF_yes_abx")) # complex 3yof with VAP, antibiotic exposed in ED
-#
-# # Filter to first 24 hours
-# plot_1_df_filtered <- plot_1_df %>%
-#   filter(score_time <= min(score_time) + 24*3600)
-#
-# # Create the plot
-# p <- ggplot(data = plot_1_df_filtered, aes(x = score_time, y = model_score, color = model_type)) +
-#   geom_line(size = 1.5) +
-#   scale_color_manual(values = c("RF_yes_abx" = "red", "LR_yes_abx" = "blue")) +
-#   labs(title = "Trajectory of Model Scores Over Time",
-#        x = "Time",
-#        y = "Model Score",
-#        color = "Model Type") +
-#   scale_y_continuous(limits = c(0, 100)) +
-#   theme(
-#     plot.title = element_text(size = 20, face = "bold"),
-#     axis.title = element_text(size = 16, face = "bold"),
-#     axis.text = element_text(size = 14),
-#     legend.title = element_text(size = 16, face = "bold"),
-#     legend.text = element_text(size = 14)
-#   )
-#
-# # Print the plot
-# print(p)
-#
-# # Plot 2
-# plot_2_df <- to_plot_pna %>% filter(pat_enc_csn_id == 78319354, model_type %in% c("LR_yes_abx", "RF_yes_abx")) # complex 3yof with VAP, antibiotic exposed in ED
-#
-# # Filter to first 24 hours
-# plot_2_df_filtered <- plot_2_df %>%
-#   filter(score_time <= min(score_time) + 24*3600)
-#
-# # Create the plot
-# p_2 <- ggplot(data = plot_2_df_filtered, aes(x = score_time, y = model_score, color = model_type)) +
-#   geom_line(size = 1.5) +
-#   scale_color_manual(values = c("RF_yes_abx" = "red", "LR_yes_abx" = "blue")) +
-#   labs(title = "Trajectory of Model Scores Over Time",
-#        x = "Time",
-#        y = "Model Score",
-#        color = "Model Type") +
-#   scale_y_continuous(limits = c(0, 100)) +
-#   theme(
-#     plot.title = element_text(size = 20, face = "bold"),
-#     axis.title = element_text(size = 16, face = "bold"),
-#     axis.text = element_text(size = 14),
-#     legend.title = element_text(size = 16, face = "bold"),
-#     legend.text = element_text(size = 14)
-#   )
-#
-# # Print the plot
-# print(p_2)
-#
-#
-#
-# # Find SBI negative patient
-# to_plot_neg <- pros_pna %>% dplyr::select(pat_enc_csn_id, age, pna_1_0, cx_neg_sepsis, model_type, score_time, model_score) %>%
-#   filter(pna_1_0 == 0) %>% filter(cx_neg_sepsis == 0)
-#
-#
-#
-#
-# # Plot 2
-# plot_3_df <- to_plot_neg %>% filter(pat_enc_csn_id == 78568846, model_type %in% c("LR_no_abx", "RF_no_abx")) # 14yoM status dystonicus, no abx, +RV/EV
-#
-# # Filter to first 24 hours
-# plot_3_df_filtered <- plot_3_df %>%
-#   filter(score_time <= min(score_time) + 24*3600)
-#
-# # Create the plot
-# p_3 <- ggplot(data = plot_3_df_filtered, aes(x = score_time, y = model_score, color = model_type)) +
-#   geom_line(size = 1.5) +
-#   scale_color_manual(values = c("RF_no_abx" = "red", "LR_no_abx" = "blue")) +
-#   labs(title = "Trajectory of Model Scores Over Time",
-#        x = "Time",
-#        y = "Model Score",
-#        color = "Model Type") +
-#   scale_y_continuous(limits = c(0, 100)) +
-#   theme(
-#     plot.title = element_text(size = 20, face = "bold"),
-#     axis.title = element_text(size = 16, face = "bold"),
-#     axis.text = element_text(size = 14),
-#     legend.title = element_text(size = 16, face = "bold"),
-#     legend.text = element_text(size = 14)
-#   )
-#
-# # Print the plot
-# print(p_3)
-
 
 
